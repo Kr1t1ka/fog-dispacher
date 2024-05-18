@@ -1,15 +1,23 @@
 import requests
 
 from fastapi import FastAPI
+from pydantic_settings import BaseSettings
+
+
+class WorkerSettings(BaseSettings):
+    worker_urls: list[str] = ["http://worker1", "http://worker2",
+                              "http://worker3"]
+    coef_cpu: int = 1
+    coef_gpu: int = 0
+    coef_network: int = 0
+
+
+settings = WorkerSettings()
 
 app = FastAPI()
 
-worker_urls = ["http://worker1", "http://worker2", "http://worker3"]
-worker_state: list[dict | None] = [None for _ in range(len(worker_urls))]
-
-coef_cpu = 1
-coef_gpu = 0
-coef_network = 0
+worker_state: list[dict | None] = [None for _ in
+                                   range(len(settings.worker_urls))]
 
 
 def argmax(it):
@@ -31,7 +39,7 @@ def argmax(it):
 
 
 def fetch_worker_state():
-    for idx, url in enumerate(worker_urls):
+    for idx, url in enumerate(settings.worker_urls):
         resp = requests.get(url + "/server/load")
         body_json = resp.json()
 
@@ -50,9 +58,9 @@ def pick_worker():
     scores = []
     for idx, w_state in enumerate(worker_state):
         score = (
-            coef_cpu * (w_state["cpu_perc"] / 100)
-            + coef_gpu * 0
-            + coef_network * 1
+                settings.coef_cpu * (w_state["cpu_perc"] / 100)
+                + settings.coef_gpu * 0
+                + settings.coef_network * 1
         )
         score = score * k_storage * k_ram
         scores.append(score)
@@ -62,7 +70,7 @@ def pick_worker():
 
 
 def run_task_in_worker(worker_idx):
-    url = f"{worker_urls[worker_idx]}/docker/run?image=cpu-bound&waited=true"
+    url = f"{settings.worker_urls[worker_idx]}/docker/run?image=cpu-bound&waited=true"
     resp = requests.post(url, json={"PRECISION": "55000"})
     body_json = resp.json()
     return body_json
@@ -76,7 +84,7 @@ def make_new_task():
 
 @app.post("/api/v1/stop_all")
 def stop_all_workers():
-    for url in worker_urls:
+    for url in settings.worker_urls:
         url = f"{url}/docker/containers/all"
         resp = requests.delete(url)
         assert resp.status_code == 204
