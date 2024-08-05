@@ -5,8 +5,7 @@ from pydantic_settings import BaseSettings
 
 
 class WorkerSettings(BaseSettings):
-    worker_urls: list[str] = ["http://worker1", "http://worker2",
-                              "http://worker3"]
+    worker_urls: list[str] = ["http://192.168.31.48:8000", "http://192.168.31.49:8000"]
     coef_cpu: int = 1
     coef_gpu: int = 0
     coef_network: int = 0
@@ -42,14 +41,15 @@ def fetch_worker_state():
     for idx, url in enumerate(settings.worker_urls):
         resp = requests.get(url + "/server/load")
         body_json = resp.json()
-
+        print(url)
+        print(body_json)
         worker_state[idx] = {
             "cpu_perc": body_json["available_FLOPS_percentage"],
             "available_RAM": body_json["available_RAM"],
         }
 
 
-# fetch_worker_state()
+fetch_worker_state()
 
 
 def pick_worker():
@@ -70,8 +70,9 @@ def pick_worker():
 
 
 def run_task_in_worker(worker_idx):
-    url = f"{settings.worker_urls[worker_idx]}/docker/run?image=cpu-bound&waited=true"
+    url = f"{settings.worker_urls[worker_idx]}/docker/run?image=kr1t1ka/cpu-buond&waited=true"
     resp = requests.post(url, json={"PRECISION": "55000"})
+    print(resp.status_code)
     body_json = resp.json()
     return body_json
 
@@ -79,6 +80,7 @@ def run_task_in_worker(worker_idx):
 @app.post("/api/v1/run")
 def make_new_task():
     worker_idx = pick_worker()
+    print(worker_idx)
     return run_task_in_worker(worker_idx)
 
 
